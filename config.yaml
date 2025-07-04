@@ -1,0 +1,8 @@
+app_config:
+  app_port: 8080
+  metric_port: 7070
+  write_timeout: 15
+  read_time_out: 15
+  idle_timeout: 15
+
+
