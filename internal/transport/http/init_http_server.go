@@ -6,16 +6,20 @@ import (
 	"fmt"
 	"github.com/DaminduDilsara/web-analyzer/configurations"
 	"github.com/DaminduDilsara/web-analyzer/internal/controllers"
+	"github.com/DaminduDilsara/web-analyzer/internal/log_utils"
 	"github.com/DaminduDilsara/web-analyzer/internal/transport/http/engines"
-	"log"
 	"net/http"
 	"time"
 )
 
+const webAnalyzerWebServerLogPrefix = "init_http_server"
+
 var engine http.Server
 var srvMetrics http.Server
 
+// InitServer - initialize the web servers
 func InitServer(
+	logger log_utils.LoggerInterface,
 	appConf *configurations.AppConfigurations,
 	controllerV1 *controllers.ControllerV1,
 ) {
@@ -38,26 +42,26 @@ func InitServer(
 
 	go func() {
 		if err := engine.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Fatalf(fmt.Sprintf("Failed to start default web server : %v", err))
+			logger.Fatal("failed to start default web server", err, log_utils.SetLogFile(webAnalyzerWebServerLogPrefix))
 		}
 	}()
-	log.Println(fmt.Sprintf("Starting default web server under port : %v", appConf.AppPort))
-
+	logger.Info(fmt.Sprintf("Starting default web server under port : %v", appConf.AppPort), log_utils.SetLogFile(webAnalyzerWebServerLogPrefix))
 	go func() {
 		if err := srvMetrics.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Fatalf(fmt.Sprintf("Failed to start the metrics web server : %v", err))
+			logger.Fatal("failed to start the metrics web server", err, log_utils.SetLogFile(webAnalyzerWebServerLogPrefix))
 		}
 	}()
-	log.Println(fmt.Sprintf("Starting metrics web server under port : %v", appConf.MetricPort))
+	logger.Info(fmt.Sprintf("Starting metrics web server under port : %v", appConf.MetricPort), log_utils.SetLogFile(webAnalyzerWebServerLogPrefix))
 }
 
-func Shutdown() {
+// Shutdown - shutdown the web servers
+func Shutdown(logger log_utils.LoggerInterface) {
 
 	if err := engine.Shutdown(context.Background()); err != nil {
-		log.Fatal(fmt.Sprintf("Failed to stop the default web server : %v", err))
+		logger.Fatal("failed to stop the default web server", err, log_utils.SetLogFile(webAnalyzerWebServerLogPrefix))
 	}
 
 	if err := srvMetrics.Shutdown(context.Background()); err != nil {
-		log.Fatal(fmt.Sprintf("Failed to stop the metrics web server : %v", err))
+		logger.Fatal("failed to stop the metrics web server", err, log_utils.SetLogFile(webAnalyzerWebServerLogPrefix))
 	}
 }

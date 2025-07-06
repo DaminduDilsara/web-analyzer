@@ -7,8 +7,9 @@ import (
 )
 
 type Config struct {
-	AppConfig *AppConfigurations `yaml:"app_config"`
-	LogConfig *LogConfigurations `yaml:"log_config"`
+	AppConfig         *AppConfigurations         `yaml:"app_config"`
+	LogConfig         *LogConfigurations         `yaml:"log_config"`
+	WebAnalyzerConfig *WebAnalyzerConfigurations `yaml:"web_analyzer_configurations"`
 }
 
 func LoadConfigurations() *Config {

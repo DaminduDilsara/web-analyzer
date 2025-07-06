@@ -7,5 +7,6 @@ app_config:
 log_config:
   log_level: "info"
   log_file_path: "./logs"
-
+web_analyzer_configurations:
+  max_link_access_checker_worker_count: 20
 

@@ -3,14 +3,13 @@ package services
 import (
 	"context"
 	"fmt"
-	"github.com/DaminduDilsara/web-analyzer/internal/schemas/responseDtos"
-	"github.com/DaminduDilsara/web-analyzer/internal/utils"
+	"github.com/DaminduDilsara/web-analyzer/internal/log_utils"
+	"github.com/DaminduDilsara/web-analyzer/internal/schemas/response_dtos"
+	"github.com/DaminduDilsara/web-analyzer/internal/web_analyzer_utils"
 	"github.com/PuerkitoBio/goquery"
 	"net/http"
 	"net/url"
 	"strings"
-	"sync"
-	"time"
 )
 
 const webAnalyzerServiceLogPrefix = "web_analyzer_service_impl"
@@ -18,46 +17,59 @@ const webAnalyzerServiceLogPrefix = "web_analyzer_service_impl"
 var typesOfHeadings = [...]string{"h1", "h2", "h3", "h4", "h5", "h6"}
 
 type webAnalyzerServiceImpl struct {
-	logger utils.LoggerInterface
+	logger           log_utils.LoggerInterface
+	webAnalyzerUtils web_analyzer_utils.WebAnalyzerUtils
 }
 
-func NewWebAnalyzerService(logger utils.LoggerInterface) WebAnalyzerService {
+func NewWebAnalyzerService(
+	logger log_utils.LoggerInterface,
+	webAnalyzerUtils web_analyzer_utils.WebAnalyzerUtils,
+) WebAnalyzerService {
 	return &webAnalyzerServiceImpl{
-		logger: logger,
+		logger:           logger,
+		webAnalyzerUtils: webAnalyzerUtils,
 	}
 }
 
-func (w *webAnalyzerServiceImpl) AnalyzeUrl(ctx context.Context, parsedURL *url.URL) (*responseDtos.UrlAnalyzerResponse, error) {
+// AnalyzeUrl - analyze the given url and return UrlAnalyzerResponse as response
+// - HTMLVersion - version of the web page
+// - Title - title of web page
+// - Headings - count of each heading type h1, h2, h3, h4, h5, h6
+// - InternalLinks - count of internal links
+// - ExternalLinks - count of external links
+// - InaccessibleLinks - count of inaccessible links
+// - LoginForm - if a login form present (true or false)
+func (w *webAnalyzerServiceImpl) AnalyzeUrl(ctx context.Context, parsedURL *url.URL) (*response_dtos.UrlAnalyzerResponse, error) {
 
 	resp, err := http.Get(parsedURL.String())
 	if err != nil {
-		w.logger.ErrorWithContext(ctx, "Unable to fetch URL", err, utils.SetLogFile(webAnalyzerServiceLogPrefix))
+		w.logger.ErrorWithContext(ctx, "Unable to fetch data from the url", err, log_utils.SetLogFile(webAnalyzerServiceLogPrefix))
 		return nil, err
 	}
 	defer resp.Body.Close()
 
 	if (resp.StatusCode < http.StatusOK) || (resp.StatusCode >= http.StatusMultipleChoices) {
 		err = fmt.Errorf("unexpected HTTP status code: %d %s", resp.StatusCode, http.StatusText(resp.StatusCode))
-		w.logger.ErrorWithContext(ctx, "unexpected HTTP status code", err, utils.SetLogFile(webAnalyzerServiceLogPrefix))
+		w.logger.ErrorWithContext(ctx, "unexpected HTTP status code", err, log_utils.SetLogFile(webAnalyzerServiceLogPrefix))
 		return nil, err
 	}
 
 	doc, err := goquery.NewDocumentFromReader(resp.Body)
 	if err != nil {
-		w.logger.ErrorWithContext(ctx, "response cannot parse to html", err, utils.SetLogFile(webAnalyzerServiceLogPrefix))
+		w.logger.ErrorWithContext(ctx, "response cannot parse to html", err, log_utils.SetLogFile(webAnalyzerServiceLogPrefix))
 		return nil, err
 	}
 
 	htmlText, err := doc.Html()
 	if err != nil {
-		w.logger.ErrorWithContext(ctx, "cannot extract html text from document", err, utils.SetLogFile(webAnalyzerServiceLogPrefix))
+		w.logger.ErrorWithContext(ctx, "cannot extract html text from document", err, log_utils.SetLogFile(webAnalyzerServiceLogPrefix))
 		return nil, err
 	}
 
-	result := responseDtos.UrlAnalyzerResponse{
+	result := response_dtos.UrlAnalyzerResponse{
 		Headings:    make(map[string]int),
 		Title:       doc.Find("title").First().Text(),
-		HTMLVersion: detectHTMLVersion(htmlText),
+		HTMLVersion: w.webAnalyzerUtils.DetectHTMLVersion(ctx, htmlText),
 		LoginForm:   doc.Find("form input[type='password']").Length() > 0,
 	}
 
@@ -85,86 +97,10 @@ func (w *webAnalyzerServiceImpl) AnalyzeUrl(ctx context.Context, parsedURL *url.
 		allLinks = append(allLinks, link)
 	})
 
-	result.InaccessibleLinks = isLinksAccessible(allLinks, parsedURL)
+	w.logger.InfoWithContext(ctx, fmt.Sprintf("found %v links totally", len(allLinks)), log_utils.SetLogFile(webAnalyzerServiceLogPrefix))
+
+	result.InaccessibleLinks = w.webAnalyzerUtils.IsLinksAccessible(ctx, allLinks, parsedURL)
 
 	return &result, nil
 
-}
-
-func detectHTMLVersion(body string) string {
-	body = strings.ToLower(body)
-
-	switch {
-	case strings.Contains(body, "<!doctype html>"):
-		return "HTML 5"
-	case strings.Contains(body, "-//w3c//dtd html 4.01 frameset//en"):
-		return "HTML 4.01 Frameset"
-	case strings.Contains(body, "-//w3c//dtd html 4.01 transitional//en"):
-		return "HTML 4.01 Transitional"
-	case strings.Contains(body, "-//w3c//dtd html 4.01//en"):
-		return "HTML 4.01 Strict"
-	case strings.Contains(body, "-//w3c//dtd xhtml 1.1//en"):
-		return "XHTML 1.1"
-	case strings.Contains(body, "-//w3c//dtd xhtml 1.0 frameset//en"):
-		return "XHTML 1.0 Frameset"
-	case strings.Contains(body, "-//w3c//dtd xhtml 1.0 transitional//en"):
-		return "XHTML 1.0 Transitional"
-	case strings.Contains(body, "-//w3c//dtd xhtml 1.0 strict//en"):
-		return "XHTML 1.0 Strict"
-	default:
-		return "Unknown"
-	}
-}
-
-func isLinksAccessible(links []string, base *url.URL) int {
-	const maxWorkers = 20
-
-	workers := make(chan struct{}, maxWorkers)
-	var wg sync.WaitGroup
-	resultChan := make(chan int, len(links))
-
-	for _, link := range links {
-		wg.Add(1)
-		workers <- struct{}{} // acquire worker
-
-		go func(link string) {
-			defer wg.Done()
-			defer func() { <-workers }() // release worker
-
-			fullURL := normalizeURL(link, base)
-
-			client := &http.Client{Timeout: 5 * time.Second}
-			resp, err := client.Head(fullURL)
-			if (err != nil) || (resp.StatusCode < http.StatusOK) || (resp.StatusCode >= http.StatusMultipleChoices) {
-				resultChan <- 1
-			} else {
-				resultChan <- 0
-			}
-			if resp != nil {
-				resp.Body.Close()
-			}
-		}(link)
-	}
-
-	go func() {
-		wg.Wait()
-		close(resultChan)
-	}()
-
-	inaccessibleLinkCount := 0
-	for result := range resultChan {
-		inaccessibleLinkCount += result
-	}
-
-	return inaccessibleLinkCount
-}
-
-func normalizeURL(link string, base *url.URL) string {
-	if strings.HasPrefix(link, "//") {
-		return base.Scheme + ":" + link
-	}
-	if strings.HasPrefix(link, "/") {
-		return base.Scheme + "://" + base.Host + link
-	}
-	return link
 }

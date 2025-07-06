@@ -1,4 +1,4 @@
-package responseDtos
+package response_dtos
 
 type ErrorResponse struct {
 	Code    int    `json:"code"`

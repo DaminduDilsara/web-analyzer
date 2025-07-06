@@ -1,4 +1,4 @@
-package utils
+package log_utils
 
 import (
 	"context"
@@ -39,6 +39,8 @@ type logger struct {
 	logConfig *configurations.LogConfigurations
 }
 
+// InitLogger - this method initiates the logger utils.
+// this uses go zap for log formatting and go lumberjack for log rotating
 func InitLogger(appName string, logConfig *configurations.LogConfigurations) LoggerInterface {
 	logFilePath := logConfig.LogFilePath
 	if logFilePath == "" {
@@ -49,10 +51,10 @@ func InitLogger(appName string, logConfig *configurations.LogConfigurations) Log
 
 	lumberjackLogger := &lumberjack.Logger{ // log file rotating configs
 		Filename:   logFile,
-		MaxSize:    100, // megabytes
-		MaxBackups: 7,
-		MaxAge:     1,    // days
-		Compress:   true, // optional
+		MaxSize:    100,  // if the file exceeds 100 megabytes, create a new file
+		MaxBackups: 7,    // keep maximum 7 files of past logs. delete the rest
+		MaxAge:     1,    // keep logs of one day per file
+		Compress:   true, // keep rotated log files as compressed using gzip
 	}
 
 	fileWriter := zapcore.AddSync(lumberjackLogger)
@@ -86,6 +88,7 @@ func InitLogger(appName string, logConfig *configurations.LogConfigurations) Log
 }
 
 // InitConsoleLogger - this method is only for unit tests
+// this method does not initiate zap or log rotation
 func InitConsoleLogger() LoggerInterface {
 	consoleWriter := zapcore.AddSync(os.Stdout)
 
