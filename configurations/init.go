@@ -8,6 +8,7 @@ import (
 
 type Config struct {
 	AppConfig *AppConfigurations `yaml:"app_config"`
+	LogConfig *LogConfigurations `yaml:"log_config"`
 }
 
 func LoadConfigurations() *Config {

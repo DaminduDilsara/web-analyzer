@@ -3,7 +3,9 @@ package main
 import (
 	"github.com/DaminduDilsara/web-analyzer/configurations"
 	"github.com/DaminduDilsara/web-analyzer/internal/controllers"
+	"github.com/DaminduDilsara/web-analyzer/internal/services"
 	"github.com/DaminduDilsara/web-analyzer/internal/transport/http"
+	"github.com/DaminduDilsara/web-analyzer/internal/utils"
 	"log"
 	"os"
 )
@@ -15,7 +17,11 @@ func main() {
 
 	conf := configurations.LoadConfigurations()
 
-	controller := controllers.NewControllerV1()
+	logger := utils.InitLogger("web-analyzer", conf.LogConfig)
+
+	webAnalyzerService := services.NewWebAnalyzerService(logger)
+
+	controller := controllers.NewControllerV1(webAnalyzerService, logger)
 
 	http.InitServer(conf.AppConfig, controller)
 

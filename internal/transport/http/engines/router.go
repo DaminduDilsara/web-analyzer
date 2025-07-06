@@ -27,7 +27,7 @@ func (e *Engine) GetEngine() *gin.Engine {
 
 	v1Group := engine.Group("/api/v1")
 	{
-		v1Group.GET("hello", e.controller.SayHello) // TODO: this is a test endpoint
+		v1Group.POST("analyze", e.controller.AnalyzeController)
 	}
 
 	return engine

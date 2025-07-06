@@ -4,5 +4,8 @@ app_config:
   write_timeout: 15
   read_time_out: 15
   idle_timeout: 15
+log_config:
+  log_level: "info"
+  log_file_path: "./logs"
 
 
