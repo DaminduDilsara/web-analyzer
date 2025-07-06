@@ -2,6 +2,7 @@ package engines
 
 import (
 	"github.com/DaminduDilsara/web-analyzer/internal/controllers"
+	"github.com/gin-contrib/pprof"
 	"github.com/gin-gonic/gin"
 	"net/http"
 )
@@ -20,6 +21,8 @@ func NewEngine(
 
 func (e *Engine) GetEngine() *gin.Engine {
 	engine := gin.New()
+
+	pprof.Register(engine)
 
 	engine.GET("/ping", func(context *gin.Context) {
 		context.String(http.StatusOK, "pong")
