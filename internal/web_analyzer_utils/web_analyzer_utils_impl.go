@@ -83,7 +83,6 @@ func (w *webAnalyzerUtilsImpl) IsLinksAccessible(ctx context.Context, links []st
 			client := &http.Client{Timeout: 5 * time.Second}
 			resp, err := client.Head(fullURL)
 			if (err != nil) || (resp.StatusCode < http.StatusOK) || (resp.StatusCode >= http.StatusMultipleChoices) {
-				w.logger.InfoWithContext(ctx, fmt.Sprintf("unable to head the url %v. response status %v", fullURL, resp.Status), log_utils.SetLogFile(webAnalyzerUtilsLogPrefix))
 				resultChan <- 1
 			} else {
 				resultChan <- 0
