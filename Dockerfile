@@ -29,5 +29,6 @@ COPY --from=builder /app/config.yaml .
 COPY --from=builder /app/analyzer.html .
 
 EXPOSE 8080
+EXPOSE 7070
 
 ENTRYPOINT ["./app"]

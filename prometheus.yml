@@ -4,4 +4,4 @@ global:
 scrape_configs:
   - job_name: 'web-analyzer'
     static_configs:
-      - targets: ['localhost']
+      - targets: ['web-analyzer:7070']

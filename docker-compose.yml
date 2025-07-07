@@ -4,6 +4,8 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: go-web-analyzer
+    networks:
+      - web-analyzer-network
     ports:
       - "8080:8080"
       - "7070:7070"
