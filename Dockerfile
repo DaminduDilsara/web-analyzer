@@ -26,6 +26,7 @@ WORKDIR /app
 # Copy binary and config file
 COPY --from=builder /app/app .
 COPY --from=builder /app/config.yaml .
+COPY --from=builder /app/analyzer.html .
 
 EXPOSE 8080
 

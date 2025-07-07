@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>URL Analyzer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+            background-color: #f5f5f5;
+        }
+
+        label {
+            font-size: 1rem;
+            font-weight: bold;
+            color: #333;
+            margin-right: 10px;
+        }
+
+        input[type="text"] {
+            font-size: 1rem;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            width: 300px;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 5px rgba(0, 123, 255, 0.3);
+        }
+
+        button {
+            font-size: 1rem;
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-left: 10px;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            background-color: #6c757d;
+        }
+
+        #result {
+            margin-top: 20px;
+        }
+
+        .spinner {
+            display: none;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #007bff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: 10px;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .result-card {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        #clearBtn {
+            margin-top: 15px;
+        }
+
+        .result-item {
+            margin-bottom: 15px;
+        }
+
+        .result-label {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .result-value {
+            color: #666;
+        }
+
+        .headings-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .heading-item {
+            background: #f8f9fa;
+            padding: 8px;
+            border-radius: 4px;
+            text-align: center;
+        }
+
+        .heading-count {
+            font-size: 1.5em;
+            padding: 8px;
+            font-weight: bold;
+            color: #007bff;
+        }
+
+        .heading-type {
+            font-size: 0.9em;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+<h2>URL Analyzer</h2>
+<label for="urlInput">URL:</label>
+<input type="text" id="urlInput" placeholder="Enter URL here" size="40">
+<button id="analyzeBtn">Analyze</button>
+<div class="spinner" id="spinner"></div>
+<div id="result"></div>
+<button id="clearBtn" style="display: none;">Clear Results</button>
+<script>
+    document.getElementById('analyzeBtn').addEventListener('click', async function () {
+        const url = document.getElementById('urlInput').value.trim();
+        const resultDiv = document.getElementById('result');
+        const clearBtn = document.getElementById('clearBtn');
+        const spinner = document.getElementById('spinner');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        resultDiv.textContent = '';
+        clearBtn.style.display = 'none';
+        if (!url) {
+            resultDiv.textContent = 'Please enter a URL.';
+            return;
+        }
+        analyzeBtn.disabled = true;
+        spinner.style.display = 'inline-block';
+        try {
+            const response = await fetch('http://localhost:8080/api/v1/analyze', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({url})
+            });
+            let data;
+            try {
+                data = await response.json();
+            } catch (e) {
+                throw new Error('Invalid JSON response');
+            }
+            if (!response.ok || (data.code && data.message)) {
+                resultDiv.innerHTML = formatError(data);
+            } else {
+                resultDiv.innerHTML = formatResults(data);
+            }
+            clearBtn.style.display = 'inline';
+        } catch (err) {
+            resultDiv.textContent = 'Error: ' + err;
+        } finally {
+            analyzeBtn.disabled = false;
+            spinner.style.display = 'none';
+        }
+    });
+    document.getElementById('clearBtn').addEventListener('click', function () {
+        document.getElementById('result').innerHTML = '';
+        document.getElementById('clearBtn').style.display = 'none';
+    });
+
+    function formatResults(data) {
+        let html = '<div class="result-card">';
+
+        // HTML Version
+        html += '<div class="result-item">';
+        html += '<div class="result-label">HTML Version</div>';
+        html += '<div class="result-value">' + data.html_version + '</div>';
+        html += '</div>';
+
+        // Title
+        html += '<div class="result-item">';
+        html += '<div class="result-label">Page Title</div>';
+        html += '<div class="result-value">' + data.title + '</div>';
+        html += '</div>';
+
+        // Headings
+        html += '<div class="result-item">';
+        html += '<div class="result-label">Headings</div>';
+        html += '<div class="headings-grid">';
+        for (let heading in data.headings) {
+            html += '<div class="heading-item">';
+            html += '<div class="heading-count">' + data.headings[heading] + '</div>';
+            html += '<div class="heading-type">' + heading.toUpperCase() + '</div>';
+            html += '</div>';
+        }
+        html += '</div></div>';
+
+        // Links
+        html += '<div class="result-item">';
+        html += '<div class="result-label">Links</div>';
+        html += '<div class="result-value">';
+        html += 'Internal: ' + data.internal_links + ' | ';
+        html += 'External: ' + data.external_links + ' | ';
+        html += 'Inaccessible: ' + data.inaccessible_links;
+        html += '</div></div>';
+
+        // Login Form
+        html += '<div class="result-item">';
+        html += '<div class="result-label">Login Form</div>';
+        html += '<div class="result-value">' + (data.login_form ? 'Yes' : 'No') + '</div>';
+        html += '</div>';
+
+        html += '</div>';
+        return html;
+    }
+
+    function formatError(data) {
+        let html = '<div class="result-card" style="border-color:#dc3545;">';
+        html += '<div class="result-label" style="color:#dc3545;">Error ' + (data.code ? '(' + data.code + ')' : '') + '</div>';
+        html += '<div class="result-value">' + (data.message || 'An error occurred.') + '</div>';
+        html += '</div>';
+        return html;
+    }
+</script>
+</body>
+</html> 

@@ -21,8 +21,9 @@ func NewEngine(
 
 func (e *Engine) GetEngine() *gin.Engine {
 	engine := gin.New()
-
 	pprof.Register(engine)
+
+	engine.StaticFile("/", "./analyzer.html")
 
 	engine.GET("/ping", func(context *gin.Context) {
 		context.String(http.StatusOK, "pong")
