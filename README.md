@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Web Analyzer is a web-based application designed to analyze and monitor web resources, providing insights and metrics for URLs. The project includes a backend service written in Go, configuration for logging and monitoring, and a dashboard for visualization.
+Web Analyzer is a web-based application designed to analyze and monitor web resources, providing insights for URLs. The project includes a backend service written in Go, a simple UI written with HTML, configuration for logging and application monitoring, and a dashboard for application metrics visualization.
 
 ---
 
