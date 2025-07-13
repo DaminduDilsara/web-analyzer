@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"net/http"
 	"net/url"
+	"regexp"
 )
 
 const webAnalyzerControllerLogPrefix = "web_analyzer_controller"
@@ -50,9 +51,12 @@ func (con *ControllerV1) AnalyzeController(c *gin.Context) {
 
 	con.logger.InfoWithContext(ctx, fmt.Sprintf("got new request url %v", inputURL), log_utils.SetLogFile(webAnalyzerControllerLogPrefix))
 
+	urlParseRegex := regexp.MustCompile(`^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$`)
+
 	parsedURL, err := url.ParseRequestURI(inputURL) // checking if the URL is in valid format
-	if err != nil || !parsedURL.IsAbs() {
+	if err != nil || !parsedURL.IsAbs() || !urlParseRegex.MatchString(parsedURL.Host) {
 		con.logger.ErrorWithContext(ctx, "failed to parse url", err, log_utils.SetLogFile(webAnalyzerControllerLogPrefix))
+		con.logger.EndOfLog()
 		errorResponse := response_dtos.ErrorResponse{
 			Code:    http.StatusBadRequest,
 			Message: "failed to parse url",
@@ -64,15 +68,16 @@ func (con *ControllerV1) AnalyzeController(c *gin.Context) {
 	result, err := con.webAnalyzerService.AnalyzeUrl(ctx, parsedURL)
 	if err != nil || !parsedURL.IsAbs() {
 		con.logger.ErrorWithContext(ctx, "failed to analyze url", err, log_utils.SetLogFile(webAnalyzerControllerLogPrefix))
+		con.logger.EndOfLog()
 		errorResponse := response_dtos.ErrorResponse{
 			Code:    http.StatusInternalServerError,
-			Message: "something is wrong, please try again later",
+			Message: fmt.Sprintf("failed to analyze url: %v error: %v", inputURL, err.Error()),
 		}
 		c.JSON(http.StatusInternalServerError, errorResponse)
 		return
 	}
 
-	con.logger.InfoWithContext(ctx, fmt.Sprintf("successfully analized successfully %v", inputURL), log_utils.SetLogFile(webAnalyzerControllerLogPrefix))
-
+	con.logger.InfoWithContext(ctx, fmt.Sprintf("successfully analyzed url %v", inputURL), log_utils.SetLogFile(webAnalyzerControllerLogPrefix))
+	con.logger.EndOfLog()
 	c.JSON(http.StatusOK, result)
 }

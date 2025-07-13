@@ -32,6 +32,7 @@ type LoggerInterface interface {
 	FatalWithContext(ctx context.Context, msg string, err error, tags ...Field)
 	Debug(msg string, tags ...Field)
 	DebugWithContext(ctx context.Context, msg string, tags ...Field)
+	EndOfLog()
 }
 
 type logger struct {
@@ -111,6 +112,12 @@ func InitConsoleLogger() LoggerInterface {
 		log:       log,
 		logConfig: nil,
 	}
+}
+
+// EndOfLog - this is only used to put a separator for a log group
+func (log logger) EndOfLog() {
+	log.log.Info("-------------------------------------------------------")
+	log.log.Sync()
 }
 
 func (log logger) Info(msg string, tags ...Field) {
