@@ -25,44 +25,38 @@ func TestAnalyzeController(t *testing.T) {
 	tests := []struct {
 		name           string
 		requestBody    interface{}
-		setupMock      func(*mocks.MockWebAnalyzerService)
 		expectedStatus int
-		expectedBody   interface{}
+		mockSetup      func(*mocks.MockWebAnalyzerService)
 	}{
 		{
-			name:        "Valid Request",
-			requestBody: request_dtos.UrlAnalyzerRequest{Url: "http://example.com"},
-			setupMock: func(mockService *mocks.MockWebAnalyzerService) {
-				parsedURL, _ := url.ParseRequestURI("http://example.com")
-				mockResp := &response_dtos.UrlAnalyzerResponse{Title: "Example"}
-				mockService.EXPECT().AnalyzeUrl(gomock.Any(), parsedURL).Return(mockResp, nil)
-			},
+			name:           "Valid Request",
+			requestBody:    request_dtos.UrlAnalyzerRequest{Url: "http://example.com"},
 			expectedStatus: http.StatusOK,
-			expectedBody:   &response_dtos.UrlAnalyzerResponse{Title: "Example"},
-		},
-		{
-			name:        "Invalid JSON",
-			requestBody: "not-json",
-			setupMock:   func(mockService *mocks.MockWebAnalyzerService) {},
-			expectedStatus: http.StatusBadRequest,
-			expectedBody:   &response_dtos.ErrorResponse{Message: "invalid or missing json body"},
-		},
-		{
-			name:        "Invalid URL",
-			requestBody: request_dtos.UrlAnalyzerRequest{Url: "not-a-url"},
-			setupMock:   func(mockService *mocks.MockWebAnalyzerService) {},
-			expectedStatus: http.StatusBadRequest,
-			expectedBody:   &response_dtos.ErrorResponse{Message: "failed to parse url"},
-		},
-		{
-			name:        "Service Error",
-			requestBody: request_dtos.UrlAnalyzerRequest{Url: "http://example.com"},
-			setupMock: func(mockService *mocks.MockWebAnalyzerService) {
-				parsedURL, _ := url.ParseRequestURI("http://example.com")
-				mockService.EXPECT().AnalyzeUrl(gomock.Any(), parsedURL).Return(nil, errors.New("service error"))
+			mockSetup: func(s *mocks.MockWebAnalyzerService) {
+				urlParsed, _ := url.ParseRequestURI("http://example.com")
+				s.EXPECT().AnalyzeUrl(gomock.Any(), urlParsed).Return(&response_dtos.UrlAnalyzerResponse{Title: "Example"}, nil)
 			},
+		},
+		{
+			name:           "Invalid JSON",
+			requestBody:    "not-json",
+			expectedStatus: http.StatusBadRequest,
+			mockSetup:      func(s *mocks.MockWebAnalyzerService) {},
+		},
+		{
+			name:           "Bad URL",
+			requestBody:    request_dtos.UrlAnalyzerRequest{Url: "bad_url"},
+			expectedStatus: http.StatusBadRequest,
+			mockSetup:      func(s *mocks.MockWebAnalyzerService) {},
+		},
+		{
+			name:           "Service Error",
+			requestBody:    request_dtos.UrlAnalyzerRequest{Url: "http://example.com"},
 			expectedStatus: http.StatusInternalServerError,
-			expectedBody:   &response_dtos.ErrorResponse{Message: "something is wrong, please try again later"},
+			mockSetup: func(s *mocks.MockWebAnalyzerService) {
+				urlParsed, _ := url.ParseRequestURI("http://example.com")
+				s.EXPECT().AnalyzeUrl(gomock.Any(), urlParsed).Return(nil, errors.New("internal error"))
+			},
 		},
 	}
 
@@ -72,32 +66,26 @@ func TestAnalyzeController(t *testing.T) {
 			defer ctrl.Finish()
 
 			mockService := mocks.NewMockWebAnalyzerService(ctrl)
+			tt.mockSetup(mockService)
+
 			controller := NewControllerV1(mockService, logger)
 
-			tt.setupMock(mockService)
-
-			var jsonBody []byte
-			if str, ok := tt.requestBody.(string); ok {
-				jsonBody = []byte(str)
-			} else {
-				jsonBody, _ = json.Marshal(tt.requestBody)
+			var bodyBytes []byte
+			switch v := tt.requestBody.(type) {
+			case string:
+				bodyBytes = []byte(v)
+			default:
+				bodyBytes, _ = json.Marshal(v)
 			}
 
-			req := httptest.NewRequest(http.MethodPost, "/api/v1/analyze", bytes.NewBuffer(jsonBody))
+			req := httptest.NewRequest(http.MethodPost, "/api/v1/analyze", bytes.NewReader(bodyBytes))
 			req.Header.Set("Content-Type", "application/json")
 			w := httptest.NewRecorder()
 			c, _ := gin.CreateTestContext(w)
 			c.Request = req
 
 			controller.AnalyzeController(c)
-
 			assert.Equal(t, tt.expectedStatus, w.Code)
-
-			var resp interface{}
-			if tt.expectedBody != nil {
-				resp = tt.expectedBody
-				json.NewDecoder(w.Body).Decode(resp)
-			}
 		})
 	}
 }

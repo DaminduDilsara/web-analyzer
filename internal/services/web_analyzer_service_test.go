@@ -7,20 +7,23 @@ import (
 	"net/http"
 	"net/url"
 	"testing"
+	"time"
 
 	"github.com/DaminduDilsara/web-analyzer/internal/log_utils"
+	"github.com/DaminduDilsara/web-analyzer/internal/schemas/response_dtos"
 	"github.com/DaminduDilsara/web-analyzer/mocks"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 )
 
-// mockRoundTripper used to mock http.Get
-func mockRoundTripper(resp *http.Response, err error) func() {
-	original := http.DefaultClient.Transport
-	http.DefaultClient.Transport = roundTripperFunc(func(r *http.Request) (*http.Response, error) {
-		return resp, err
-	})
-	return func() { http.DefaultClient.Transport = original }
+// mockHTTPClient creates a mock HTTP client
+func mockHTTPClient(resp *http.Response, err error) *http.Client {
+	return &http.Client{
+		Transport: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+			return resp, err
+		}),
+		Timeout: 50 * time.Second,
+	}
 }
 
 type roundTripperFunc func(*http.Request) (*http.Response, error)
@@ -45,12 +48,31 @@ func TestAnalyzeUrl(t *testing.T) {
 		mockErr      error
 		mockUtilsFn  func(*mocks.MockWebAnalyzerUtils)
 		expectError  bool
-		expectResult bool
+		expectResult *response_dtos.UrlAnalyzerResponse
 	}
 
-	html := `<!DOCTYPE html><html><head><title>Test Page</title></head><body><h1>Header</h1><a href="/internal">Internal</a><a href="http://external.com">External</a><form><input type='password'/></form></body></html>`
-	parsedURL, _ := url.Parse("http://test.com")
+	html := ``
+	parsedURL, _ := url.Parse("http://test.test")
 	ctx := context.Background()
+
+	expectedHeadings := map[string]int{
+		"h1": 1,
+		"h2": 0,
+		"h3": 0,
+		"h4": 0,
+		"h5": 0,
+		"h6": 0,
+	}
+
+	expectedResponse := &response_dtos.UrlAnalyzerResponse{
+		HTMLVersion:       "HTML 5",
+		Title:             "Test Page",
+		Headings:          expectedHeadings,
+		InternalLinks:     1,
+		ExternalLinks:     1,
+		InaccessibleLinks: 0,
+		LoginForm:         true,
+	}
 
 	cases := []testCase{
 		{
@@ -61,9 +83,13 @@ func TestAnalyzeUrl(t *testing.T) {
 			},
 			mockUtilsFn: func(m *mocks.MockWebAnalyzerUtils) {
 				m.EXPECT().DetectHTMLVersion(ctx, gomock.Any()).Return("HTML 5")
-				m.EXPECT().IsLinksAccessible(ctx, []string{"/internal", "http://external.com"}, parsedURL).Return(0)
+				m.EXPECT().DetectPageTitle(ctx, gomock.Any()).Return("Test Page")
+				m.EXPECT().DetectLoginForm(ctx, gomock.Any()).Return(true)
+				m.EXPECT().DetectHeaders(ctx, gomock.Any(), typesOfHeadings).Return(expectedHeadings)
+				m.EXPECT().DetectLinks(ctx, gomock.Any(), "test.test").Return(1, 1, []string{"/internal", "http://external.test"})
+				m.EXPECT().IsLinksAccessible(ctx, []string{"/internal", "http://external.test"}, parsedURL).Return(0)
 			},
-			expectResult: true,
+			expectResult: expectedResponse,
 		},
 		{
 			name:        "HTTP error",
@@ -72,10 +98,19 @@ func TestAnalyzeUrl(t *testing.T) {
 			expectError: true,
 		},
 		{
-			name: "Non-200 status",
+			name: "404 error",
 			mockResp: &http.Response{
 				StatusCode: 404,
 				Body:       ioutil.NopCloser(bytes.NewBufferString("not found")),
+			},
+			mockUtilsFn: func(m *mocks.MockWebAnalyzerUtils) {},
+			expectError: true,
+		},
+		{
+			name: "500 error",
+			mockResp: &http.Response{
+				StatusCode: 500,
+				Body:       ioutil.NopCloser(bytes.NewBufferString("internal server error")),
 			},
 			mockUtilsFn: func(m *mocks.MockWebAnalyzerUtils) {},
 			expectError: true,
@@ -96,25 +131,28 @@ func TestAnalyzeUrl(t *testing.T) {
 			mockUtils := mocks.NewMockWebAnalyzerUtils(ctrl)
 			logger := log_utils.InitConsoleLogger()
 
-			// Apply mock expectations
 			if tc.mockUtilsFn != nil {
 				tc.mockUtilsFn(mockUtils)
 			}
 
-			// Mock HTTP
-			undo := mockRoundTripper(tc.mockResp, tc.mockErr)
-			defer undo()
+			mockClient := mockHTTPClient(tc.mockResp, tc.mockErr)
 
-			service := NewWebAnalyzerService(logger, mockUtils)
+			service := NewWebAnalyzerServiceWithClient(logger, mockUtils, mockClient)
 			result, err := service.AnalyzeUrl(ctx, parsedURL)
 
 			if tc.expectError {
 				assert.Error(t, err)
 				assert.Nil(t, result)
-			} else if tc.expectResult {
+			} else {
 				assert.NoError(t, err)
 				assert.NotNil(t, result)
-				assert.Equal(t, "Test Page", result.Title)
+				assert.Equal(t, tc.expectResult.HTMLVersion, result.HTMLVersion)
+				assert.Equal(t, tc.expectResult.Title, result.Title)
+				assert.Equal(t, tc.expectResult.Headings, result.Headings)
+				assert.Equal(t, tc.expectResult.InternalLinks, result.InternalLinks)
+				assert.Equal(t, tc.expectResult.ExternalLinks, result.ExternalLinks)
+				assert.Equal(t, tc.expectResult.InaccessibleLinks, result.InaccessibleLinks)
+				assert.Equal(t, tc.expectResult.LoginForm, result.LoginForm)
 			}
 		})
 	}

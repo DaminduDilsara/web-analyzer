@@ -9,6 +9,7 @@ import (
 	url "net/url"
 	reflect "reflect"
 
+	goquery "github.com/PuerkitoBio/goquery"
 	gomock "github.com/golang/mock/gomock"
 )
 
@@ -47,6 +48,64 @@ func (m *MockWebAnalyzerUtils) DetectHTMLVersion(ctx context.Context, body strin
 func (mr *MockWebAnalyzerUtilsMockRecorder) DetectHTMLVersion(ctx, body interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DetectHTMLVersion", reflect.TypeOf((*MockWebAnalyzerUtils)(nil).DetectHTMLVersion), ctx, body)
+}
+
+// DetectHeaders mocks base method.
+func (m *MockWebAnalyzerUtils) DetectHeaders(ctx context.Context, doc *goquery.Document, typesOfHeadings [6]string) map[string]int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DetectHeaders", ctx, doc, typesOfHeadings)
+	ret0, _ := ret[0].(map[string]int)
+	return ret0
+}
+
+// DetectHeaders indicates an expected call of DetectHeaders.
+func (mr *MockWebAnalyzerUtilsMockRecorder) DetectHeaders(ctx, doc, typesOfHeadings interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DetectHeaders", reflect.TypeOf((*MockWebAnalyzerUtils)(nil).DetectHeaders), ctx, doc, typesOfHeadings)
+}
+
+// DetectLinks mocks base method.
+func (m *MockWebAnalyzerUtils) DetectLinks(ctx context.Context, doc *goquery.Document, host string) (int, int, []string) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DetectLinks", ctx, doc, host)
+	ret0, _ := ret[0].(int)
+	ret1, _ := ret[1].(int)
+	ret2, _ := ret[2].([]string)
+	return ret0, ret1, ret2
+}
+
+// DetectLinks indicates an expected call of DetectLinks.
+func (mr *MockWebAnalyzerUtilsMockRecorder) DetectLinks(ctx, doc, host interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DetectLinks", reflect.TypeOf((*MockWebAnalyzerUtils)(nil).DetectLinks), ctx, doc, host)
+}
+
+// DetectLoginForm mocks base method.
+func (m *MockWebAnalyzerUtils) DetectLoginForm(ctx context.Context, doc *goquery.Document) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DetectLoginForm", ctx, doc)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// DetectLoginForm indicates an expected call of DetectLoginForm.
+func (mr *MockWebAnalyzerUtilsMockRecorder) DetectLoginForm(ctx, doc interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DetectLoginForm", reflect.TypeOf((*MockWebAnalyzerUtils)(nil).DetectLoginForm), ctx, doc)
+}
+
+// DetectPageTitle mocks base method.
+func (m *MockWebAnalyzerUtils) DetectPageTitle(ctx context.Context, doc *goquery.Document) string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DetectPageTitle", ctx, doc)
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// DetectPageTitle indicates an expected call of DetectPageTitle.
+func (mr *MockWebAnalyzerUtilsMockRecorder) DetectPageTitle(ctx, doc interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DetectPageTitle", reflect.TypeOf((*MockWebAnalyzerUtils)(nil).DetectPageTitle), ctx, doc)
 }
 
 // IsLinksAccessible mocks base method.
