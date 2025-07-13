@@ -79,9 +79,9 @@ func (w *webAnalyzerUtilsImpl) DetectLoginForm(ctx context.Context, doc *goquery
 	doc.Find("form").EachWithBreak(func(i int, s *goquery.Selection) bool {
 		if s.Find("input[type='password']").Length() > 0 {
 			isLoginPageExist = true
-			return true
+			return false
 		}
-		return false
+		return true
 	})
 
 	w.logger.InfoWithContext(ctx, fmt.Sprintf("identified the document containing a login form as %v", isLoginPageExist), log_utils.SetLogFile(webAnalyzerUtilsLogPrefix))
