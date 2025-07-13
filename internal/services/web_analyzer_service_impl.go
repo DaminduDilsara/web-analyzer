@@ -9,7 +9,7 @@ import (
 	"github.com/PuerkitoBio/goquery"
 	"net/http"
 	"net/url"
-	"strings"
+	"time"
 )
 
 const webAnalyzerServiceLogPrefix = "web_analyzer_service_impl"
@@ -41,7 +41,11 @@ func NewWebAnalyzerService(
 // - LoginForm - if a login form present (true or false)
 func (w *webAnalyzerServiceImpl) AnalyzeUrl(ctx context.Context, parsedURL *url.URL) (*response_dtos.UrlAnalyzerResponse, error) {
 
-	resp, err := http.Get(parsedURL.String())
+	client := &http.Client{
+		Timeout: 5 * time.Second,
+	}
+
+	resp, err := client.Get(parsedURL.String())
 	if err != nil {
 		w.logger.ErrorWithContext(ctx, "Unable to fetch data from the url", err, log_utils.SetLogFile(webAnalyzerServiceLogPrefix))
 		return nil, err
@@ -66,41 +70,27 @@ func (w *webAnalyzerServiceImpl) AnalyzeUrl(ctx context.Context, parsedURL *url.
 		return nil, err
 	}
 
+	htmlVersion := w.webAnalyzerUtils.DetectHTMLVersion(ctx, htmlText)
+
+	pageTitle := w.webAnalyzerUtils.DetectPageTitle(ctx, doc)
+
+	isLoginFormExist := w.webAnalyzerUtils.DetectLoginForm(ctx, doc)
+
+	headingData := w.webAnalyzerUtils.DetectHeaders(ctx, doc, typesOfHeadings)
+
+	internalLinks, externalLinks, allLinks := w.webAnalyzerUtils.DetectLinks(ctx, doc, parsedURL.Host)
+
+	inaccessibleLinks := w.webAnalyzerUtils.IsLinksAccessible(ctx, allLinks, parsedURL)
+
 	result := response_dtos.UrlAnalyzerResponse{
-		Headings:    make(map[string]int),
-		Title:       doc.Find("title").First().Text(),
-		HTMLVersion: w.webAnalyzerUtils.DetectHTMLVersion(ctx, htmlText),
-		LoginForm:   doc.Find("form input[type='password']").Length() > 0,
+		HTMLVersion:       htmlVersion,
+		Title:             pageTitle,
+		Headings:          headingData,
+		InternalLinks:     internalLinks,
+		ExternalLinks:     externalLinks,
+		InaccessibleLinks: inaccessibleLinks,
+		LoginForm:         isLoginFormExist,
 	}
-
-	// Count headings h1 to h6
-	for _, heading := range typesOfHeadings {
-		result.Headings[heading] = doc.Find(heading).Length()
-	}
-
-	var allLinks []string
-
-	doc.Find("a[href]").Each(func(i int, s *goquery.Selection) {
-		href, exists := s.Attr("href")
-		if !exists || href == "" || strings.HasPrefix(href, "#") || strings.HasPrefix(href, "javascript") {
-			return
-		}
-
-		link := strings.TrimSpace(href)
-		isInternal := strings.HasPrefix(link, "/") && !strings.HasPrefix(link, "//") || strings.Contains(link, parsedURL.Host)
-
-		if isInternal {
-			result.InternalLinks++
-		} else {
-			result.ExternalLinks++
-		}
-		allLinks = append(allLinks, link)
-	})
-
-	w.logger.InfoWithContext(ctx, fmt.Sprintf("found %v links totally", len(allLinks)), log_utils.SetLogFile(webAnalyzerServiceLogPrefix))
-
-	result.InaccessibleLinks = w.webAnalyzerUtils.IsLinksAccessible(ctx, allLinks, parsedURL)
 
 	return &result, nil
-
 }
