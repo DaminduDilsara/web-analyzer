@@ -19,6 +19,7 @@ var typesOfHeadings = [...]string{"h1", "h2", "h3", "h4", "h5", "h6"}
 type webAnalyzerServiceImpl struct {
 	logger           log_utils.LoggerInterface
 	webAnalyzerUtils web_analyzer_utils.WebAnalyzerUtils
+	httpClient       *http.Client
 }
 
 func NewWebAnalyzerService(
@@ -28,6 +29,22 @@ func NewWebAnalyzerService(
 	return &webAnalyzerServiceImpl{
 		logger:           logger,
 		webAnalyzerUtils: webAnalyzerUtils,
+		httpClient: &http.Client{
+			Timeout: 6 * time.Second,
+		},
+	}
+}
+
+// NewWebAnalyzerServiceWithClient creates a new service with a custom HTTP client (for testing)
+func NewWebAnalyzerServiceWithClient(
+	logger log_utils.LoggerInterface,
+	webAnalyzerUtils web_analyzer_utils.WebAnalyzerUtils,
+	httpClient *http.Client,
+) WebAnalyzerService {
+	return &webAnalyzerServiceImpl{
+		logger:           logger,
+		webAnalyzerUtils: webAnalyzerUtils,
+		httpClient:       httpClient,
 	}
 }
 
@@ -41,11 +58,7 @@ func NewWebAnalyzerService(
 // - LoginForm - if a login form present (true or false)
 func (w *webAnalyzerServiceImpl) AnalyzeUrl(ctx context.Context, parsedURL *url.URL) (*response_dtos.UrlAnalyzerResponse, error) {
 
-	client := &http.Client{
-		Timeout: 5 * time.Second,
-	}
-
-	resp, err := client.Get(parsedURL.String())
+	resp, err := w.httpClient.Get(parsedURL.String())
 	if err != nil {
 		w.logger.ErrorWithContext(ctx, "Unable to fetch data from the url", err, log_utils.SetLogFile(webAnalyzerServiceLogPrefix))
 		return nil, err
