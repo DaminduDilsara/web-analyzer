@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"github.com/DaminduDilsara/web-analyzer/custom_errors"
 	"github.com/DaminduDilsara/web-analyzer/internal/log_utils"
 	"github.com/DaminduDilsara/web-analyzer/internal/schemas/request_dtos"
 	"github.com/DaminduDilsara/web-analyzer/internal/schemas/response_dtos"
@@ -66,9 +67,18 @@ func (con *ControllerV1) AnalyzeController(c *gin.Context) {
 	}
 
 	result, err := con.webAnalyzerService.AnalyzeUrl(ctx, parsedURL)
-	if err != nil || !parsedURL.IsAbs() {
+	if err != nil {
 		con.logger.ErrorWithContext(ctx, "failed to analyze url", err, log_utils.SetLogFile(webAnalyzerControllerLogPrefix))
 		con.logger.EndOfLog()
+
+		if analyzerErr, ok := err.(*custom_errors.CustomError); ok {
+			c.JSON(analyzerErr.Code, response_dtos.ErrorResponse{
+				Code:    analyzerErr.Code,
+				Message: analyzerErr.Message,
+			})
+			return
+		}
+
 		errorResponse := response_dtos.ErrorResponse{
 			Code:    http.StatusInternalServerError,
 			Message: fmt.Sprintf("failed to analyze url: %v error: %v", inputURL, err.Error()),
