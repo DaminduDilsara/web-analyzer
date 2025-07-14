@@ -3,12 +3,14 @@ package services
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"testing"
 	"time"
 
+	"github.com/DaminduDilsara/web-analyzer/custom_errors"
 	"github.com/DaminduDilsara/web-analyzer/internal/log_utils"
 	"github.com/DaminduDilsara/web-analyzer/internal/schemas/response_dtos"
 	"github.com/DaminduDilsara/web-analyzer/mocks"
@@ -43,12 +45,13 @@ func TestAnalyzeUrl(t *testing.T) {
 	defer ctrl.Finish()
 
 	type testCase struct {
-		name         string
-		mockResp     *http.Response
-		mockErr      error
-		mockUtilsFn  func(*mocks.MockWebAnalyzerUtils)
-		expectError  bool
-		expectResult *response_dtos.UrlAnalyzerResponse
+		name              string
+		mockResp          *http.Response
+		mockErr           error
+		mockUtilsFn       func(*mocks.MockWebAnalyzerUtils)
+		expectError       bool
+		expectResult      *response_dtos.UrlAnalyzerResponse
+		expectCustomError *custom_errors.CustomError
 	}
 
 	html := ``
@@ -89,13 +92,23 @@ func TestAnalyzeUrl(t *testing.T) {
 				m.EXPECT().DetectLinks(ctx, gomock.Any(), "test.test").Return(1, 1, []string{"/internal", "http://external.test"})
 				m.EXPECT().IsLinksAccessible(ctx, []string{"/internal", "http://external.test"}, parsedURL).Return(0)
 			},
-			expectResult: expectedResponse,
+			expectResult:      expectedResponse,
+			expectError:       false,
+			expectCustomError: nil,
 		},
 		{
-			name:        "HTTP error",
-			mockErr:     assert.AnError,
-			mockUtilsFn: func(m *mocks.MockWebAnalyzerUtils) {},
-			expectError: true,
+			name:              "HTTP error (no such host)",
+			mockErr:           &url.Error{Op: "Get", URL: "http://test.test", Err: fmt.Errorf("no such host")},
+			mockUtilsFn:       func(m *mocks.MockWebAnalyzerUtils) {},
+			expectError:       true,
+			expectCustomError: &custom_errors.CustomError{Code: 404, Message: "server not found for the given url or domain does not exist"},
+		},
+		{
+			name:              "HTTP error (none url.Error)",
+			mockErr:           fmt.Errorf("some generic error"),
+			mockUtilsFn:       func(m *mocks.MockWebAnalyzerUtils) {},
+			expectError:       true,
+			expectCustomError: &custom_errors.CustomError{Code: 502, Message: "failed to connect to the given server"},
 		},
 		{
 			name: "404 error",
@@ -103,8 +116,9 @@ func TestAnalyzeUrl(t *testing.T) {
 				StatusCode: 404,
 				Body:       ioutil.NopCloser(bytes.NewBufferString("not found")),
 			},
-			mockUtilsFn: func(m *mocks.MockWebAnalyzerUtils) {},
-			expectError: true,
+			mockUtilsFn:       func(m *mocks.MockWebAnalyzerUtils) {},
+			expectError:       true,
+			expectCustomError: &custom_errors.CustomError{Code: 404, Message: "unexpected HTTP status code"},
 		},
 		{
 			name: "500 error",
@@ -112,8 +126,9 @@ func TestAnalyzeUrl(t *testing.T) {
 				StatusCode: 500,
 				Body:       ioutil.NopCloser(bytes.NewBufferString("internal server error")),
 			},
-			mockUtilsFn: func(m *mocks.MockWebAnalyzerUtils) {},
-			expectError: true,
+			mockUtilsFn:       func(m *mocks.MockWebAnalyzerUtils) {},
+			expectError:       true,
+			expectCustomError: &custom_errors.CustomError{Code: 500, Message: "unexpected HTTP status code"},
 		},
 		{
 			name: "Goquery parse error",
@@ -121,8 +136,9 @@ func TestAnalyzeUrl(t *testing.T) {
 				StatusCode: 200,
 				Body:       ioutil.NopCloser(errorReader{}),
 			},
-			mockUtilsFn: func(m *mocks.MockWebAnalyzerUtils) {},
-			expectError: true,
+			mockUtilsFn:       func(m *mocks.MockWebAnalyzerUtils) {},
+			expectError:       true,
+			expectCustomError: &custom_errors.CustomError{Code: 500, Message: "response cannot parse to html"},
 		},
 	}
 
@@ -138,13 +154,21 @@ func TestAnalyzeUrl(t *testing.T) {
 			mockClient := mockHTTPClient(tc.mockResp, tc.mockErr)
 
 			service := NewWebAnalyzerServiceWithClient(logger, mockUtils, mockClient)
-			result, err := service.AnalyzeUrl(ctx, parsedURL)
+			result, customErr := service.AnalyzeUrl(ctx, parsedURL)
 
 			if tc.expectError {
-				assert.Error(t, err)
 				assert.Nil(t, result)
+				assert.NotNil(t, customErr)
+				if tc.expectCustomError != nil {
+					ce, ok := customErr.(*custom_errors.CustomError)
+					if !ok {
+						t.Fatalf("error should be of type *CustomError, got %T: %v", customErr, customErr)
+					}
+					assert.Equal(t, tc.expectCustomError.Code, ce.Code)
+					assert.Equal(t, tc.expectCustomError.Message, ce.Message)
+				}
 			} else {
-				assert.NoError(t, err)
+				assert.Nil(t, customErr)
 				assert.NotNil(t, result)
 				assert.Equal(t, tc.expectResult.HTMLVersion, result.HTMLVersion)
 				assert.Equal(t, tc.expectResult.Title, result.Title)
