@@ -74,7 +74,7 @@ func (con *ControllerV1) AnalyzeController(c *gin.Context) {
 		if analyzerErr, ok := err.(*custom_errors.CustomError); ok {
 			c.JSON(analyzerErr.Code, response_dtos.ErrorResponse{
 				Code:    analyzerErr.Code,
-				Message: analyzerErr.Message,
+				Message: analyzerErr.Error(),
 			})
 			return
 		}

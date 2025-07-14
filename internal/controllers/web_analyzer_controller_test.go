@@ -92,7 +92,7 @@ func TestAnalyzeController(t *testing.T) {
 			expectedStatus: http.StatusInternalServerError,
 			expectedBody: map[string]interface{}{
 				"code":    float64(http.StatusInternalServerError),
-				"message": "internal error",
+				"message": "internal error: <nil>",
 			},
 			mockSetup: func(s *mocks.MockWebAnalyzerService) {
 				s.EXPECT().AnalyzeUrl(gomock.Any(), gomock.Any()).Return(nil, custom_errors.NewCustomError(http.StatusInternalServerError, "internal error", nil))
@@ -104,7 +104,7 @@ func TestAnalyzeController(t *testing.T) {
 			expectedStatus: http.StatusNotFound,
 			expectedBody: map[string]interface{}{
 				"code":    float64(http.StatusNotFound),
-				"message": "server not found for the given url or domain does not exist",
+				"message": "server not found for the given url or domain does not exist: <nil>",
 			},
 			mockSetup: func(s *mocks.MockWebAnalyzerService) {
 				s.EXPECT().AnalyzeUrl(gomock.Any(), gomock.Any()).Return(nil, custom_errors.NewCustomError(http.StatusNotFound, "server not found for the given url or domain does not exist", nil))
@@ -138,7 +138,7 @@ func TestAnalyzeController(t *testing.T) {
 			expectedStatus: http.StatusNotFound,
 			expectedBody: map[string]interface{}{
 				"code":    float64(http.StatusNotFound),
-				"message": "unexpected HTTP status code",
+				"message": "unexpected HTTP status code: <nil>",
 			},
 			mockSetup: func(s *mocks.MockWebAnalyzerService) {
 				s.EXPECT().AnalyzeUrl(gomock.Any(), gomock.Any()).Return(nil, custom_errors.NewCustomError(http.StatusNotFound, "unexpected HTTP status code", nil))
